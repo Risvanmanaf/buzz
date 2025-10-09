@@ -7,15 +7,24 @@ class AuthService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'https://www.googleapis.com/auth/userinfo.profile'],
   );
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Get current user
+  User? get currentUser => _auth.currentUser;
+
+  // Auth state changes stream
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   /// Sign in with Google
   Future<User?> signInWithGoogle() async {
     try {
       final googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null; 
+      if (googleUser == null) return null;
 
       final googleAuth = await googleUser.authentication;
-      if (googleAuth.idToken == null || googleAuth.accessToken == null) return null;
+      if (googleAuth.idToken == null || googleAuth.accessToken == null) {
+        return null;
+      }
 
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
@@ -26,23 +35,27 @@ class AuthService {
       final user = userCredential.user;
       if (user == null) return null;
 
-      // Save basic user info in Firestore (try/catch to avoid crash)
+      // Save user info in Firestore with serverTimestamp
       try {
-        final docRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+        final docRef = _firestore.collection('users').doc(user.uid);
         final doc = await docRef.get();
+        
         if (!doc.exists) {
           await docRef.set({
             'uid': user.uid,
-            'name': user.displayName,
+            'displayName': user.displayName ?? 'Unknown User',
             'email': user.email,
-            'photoUrl': user.photoURL,
-            'createdAt': DateTime.now(),
+            'photoURL': user.photoURL,
+            'createdAt': FieldValue.serverTimestamp(),
+            'lastSeen': FieldValue.serverTimestamp(),
           });
         } else {
-          await docRef.set({'lastLogin': DateTime.now()}, SetOptions(merge: true));
+          await docRef.update({
+            'lastSeen': FieldValue.serverTimestamp(),
+          });
         }
       } catch (e) {
-        print("Firestore write failed: $e"); // don't block navigation
+        print("Firestore write failed: $e");
       }
 
       return user;
@@ -53,7 +66,17 @@ class AuthService {
   }
 
   Future<void> signOut() async {
-    await _googleSignIn.signOut();
-    await _auth.signOut();
+    try {
+      // Update lastSeen before signing out
+      if (_auth.currentUser != null) {
+        await _firestore.collection('users').doc(_auth.currentUser!.uid).update({
+          'lastSeen': FieldValue.serverTimestamp(),
+        });
+      }
+      await _googleSignIn.signOut();
+      await _auth.signOut();
+    } catch (e) {
+      print("Sign out failed: $e");
+    }
   }
 }

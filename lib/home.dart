@@ -1,92 +1,88 @@
 import 'package:application/auth_service.dart';
-import 'package:application/screen.dart/login.dart';
+import 'package:application/chat_screen.dart';
+import 'package:application/chat_service.dart';
 import 'package:flutter/material.dart';
 
-class Home extends StatefulWidget {
-  const Home({super.key});
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<Home> createState() => _HomeState();
-}
+  Widget build(BuildContext context) {
+    final AuthService authService = AuthService();
+    final ChatService chatService = ChatService();
+    final currentUser = authService.currentUser;
 
-class _HomeState extends State<Home> {
-
-
-  // logout 
- 
- Future<void>logout()async{
-  showDialog(context: context, builder: (context)=>AlertDialog(
-    title: Text('Logout'),
-    content: Text('Are you sure you want to logout'),
-    actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context), 
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () async {
-          
-            final authService = AuthService();
-            await authService.signOut();
-
-            Navigator.pushAndRemoveUntil(
-              context,
-              MaterialPageRoute(builder: (_) => const LoginPage()),
-              (route) => false,
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('BuzzChat'),
+        actions: [
+          IconButton(
+            onPressed: () async {
+              await authService.signOut();
+            },
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sign Out',
+          ),
+        ],
+      ),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: chatService.getUsersStream(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Error: ${snapshot.error}'),
             );
-          },
-          child: const Text('Logout'),
-        ),
-      ],
-  ));
- }
+          }
 
-  // custom widget
-  Widget _buildChatCard(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-      Navigator.push(
-  context,
-  MaterialPageRoute(builder: (context) => const ChatPage()),
-);
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-      },
-      child: Column(
-        children: [
-          Container(
-            height: 80,
-            width: MediaQuery.of(context).size.width,
-            decoration: BoxDecoration(
-              color: Colors.amber,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
+          final users = snapshot.data ?? [];
+
+          if (users.isEmpty) {
+            return const Center(
+              child: Text('No users available to chat with'),
+            );
+          }
+
+          return Column(
+            children: [
+              // Current user profile card
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.deepPurple.shade50,
+                child: Row(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Container(
-                        height: 30,
-                        width: 30,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.black26,
-                        ),
-                      ),
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundImage: currentUser?.photoURL != null
+                          ? NetworkImage(currentUser!.photoURL!)
+                          : null,
+                      child: currentUser?.photoURL == null
+                          ? Text(
+                              currentUser?.displayName?[0] ?? 'U',
+                              style: const TextStyle(fontSize: 24),
+                            )
+                          : null,
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(8.0),
+                    const SizedBox(width: 16),
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text('Name', style: TextStyle(fontSize: 16)),
+                        children: [
                           Text(
-                            'last seen',
+                            currentUser?.displayName ?? 'Unknown',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            currentUser?.email ?? '',
                             style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black54,
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
                             ),
                           ),
                         ],
@@ -94,47 +90,69 @@ class _HomeState extends State<Home> {
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          const Divider(height: 2),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Chats"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: logout,
-          ),
-        ],
-      ),
-
-      body: ListView.builder(
-        itemCount: 10,
-        itemBuilder: (context, index) {
-          return _buildChatCard(context);
+              ),
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Start a conversation',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: users.length,
+                  itemBuilder: (context, index) {
+                    final user = users[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundImage: user['photoURL'] != null
+                              ? NetworkImage(user['photoURL'])
+                              : null,
+                          child: user['photoURL'] == null
+                              ? Text(user['displayName']?[0] ?? 'U')
+                              : null,
+                        ),
+                        title: Text(
+                          user['displayName'] ?? 'Unknown',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(user['email'] ?? ''),
+                        trailing: const Icon(Icons.chat_bubble_outline),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatScreen(
+                                receiverEmail: user['email'],
+                                receiverId: user['uid'],
+                                receiverName: user['displayName'] ?? 'Unknown',
+                                receiverPhotoUrl: user['photoURL'],
+                              ),
+                            ),
+                          );
+                          
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
         },
       ),
-    );
-  }
-}
-
-// Chat page to navigate
-class ChatPage extends StatelessWidget {
-  const ChatPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Chat Page")),
-      body: const Center(child: Text("This is the chat interface")),
     );
   }
 }
