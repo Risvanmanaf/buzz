@@ -1,5 +1,6 @@
 import 'package:application/auth_service.dart';
 import 'package:application/chat_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -10,6 +11,7 @@ class ChatScreen extends StatefulWidget {
   final String receiverName;
   final String? receiverPhotoUrl;
 
+ 
   const ChatScreen({
     Key? key,
     required this.receiverEmail,
@@ -27,6 +29,36 @@ class _ChatScreenState extends State<ChatScreen> {
   final ChatService _chatService = ChatService();
   final AuthService _authService = AuthService();
   final ScrollController _scrollController = ScrollController();
+
+   String formatLastSeen(dynamic lastSeen) {
+  if (lastSeen == null) return 'Last seen: unknown';
+
+  DateTime lastSeenTime;
+
+  if (lastSeen is DateTime) {
+    lastSeenTime = lastSeen;
+  } else if (lastSeen is int) {
+    lastSeenTime = DateTime.fromMillisecondsSinceEpoch(lastSeen);
+  } else if (lastSeen is Timestamp) { // If using Firestore Timestamp
+    lastSeenTime = lastSeen.toDate();
+  } else {
+    return 'Last seen: unknown';
+  }
+
+  final now = DateTime.now();
+  final diff = now.difference(lastSeenTime);
+
+  if (diff.inMinutes < 1) return 'Last seen: just now';
+  if (diff.inMinutes < 60) return 'Last seen: ${diff.inMinutes} min ago';
+  if (diff.inHours < 24) return 'Last seen: ${diff.inHours} hr ago';
+  return 'Last seen: ${lastSeenTime.day}/${lastSeenTime.month}/${lastSeenTime.year}';
+}
+Stream<DocumentSnapshot> getReceiverStream(String uid) {
+  return FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
+}
+
+
+
 
   void _sendMessage() async {
     if (_messageController.text.trim().isNotEmpty) {
@@ -55,27 +87,51 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundImage: widget.receiverPhotoUrl != null
-                  ? NetworkImage(widget.receiverPhotoUrl!)
-                  : null,
-              child: widget.receiverPhotoUrl == null
-                  ? Text(widget.receiverName[0])
-                  : null,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                widget.receiverName,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+  title: Row(
+    children: [
+      CircleAvatar(
+        radius: 18,
+        backgroundImage: widget.receiverPhotoUrl != null
+            ? NetworkImage(widget.receiverPhotoUrl!)
+            : null,
+        child: widget.receiverPhotoUrl == null
+            ? Text(widget.receiverName[0])
+            : null,
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: StreamBuilder<DocumentSnapshot>(
+          stream: getReceiverStream(widget.receiverId),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.receiverName, overflow: TextOverflow.ellipsis),
+                  const Text('Loading...', style: TextStyle(fontSize: 12)),
+                ],
+              );
+            }
+
+            final data = snapshot.data!.data() as Map<String, dynamic>?;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.receiverName, overflow: TextOverflow.ellipsis),
+                Text(
+                  formatLastSeen(data?['lastSeen']),
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            );
+          },
         ),
       ),
+    ],
+  ),
+),
+
       body: Column(
         children: [
           Expanded(

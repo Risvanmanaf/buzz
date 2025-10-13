@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:application/auth_service.dart';
 import 'package:application/chat_service.dart';
@@ -9,8 +10,35 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AuthService authService = AuthService();
-    final ChatService chatService = ChatService();
+    final ChatService _chatService = ChatService();
     final currentUser = authService.currentUser;
+
+    //last seen
+
+    String formatLastSeen(dynamic lastSeen) {
+  if (lastSeen == null) return 'Last seen: unknown';
+
+  DateTime lastSeenTime;
+
+  if (lastSeen is DateTime) {
+    lastSeenTime = lastSeen;
+  } else if (lastSeen is int) {
+    lastSeenTime = DateTime.fromMillisecondsSinceEpoch(lastSeen);
+  } else if (lastSeen is Timestamp) { // If using Firestore Timestamp
+    lastSeenTime = lastSeen.toDate();
+  } else {
+    return 'Last seen: unknown';
+  }
+
+  final now = DateTime.now();
+  final diff = now.difference(lastSeenTime);
+
+  if (diff.inMinutes < 1) return 'Last seen: just now';
+  if (diff.inMinutes < 60) return 'Last seen: ${diff.inMinutes} min ago';
+  if (diff.inHours < 24) return 'Last seen: ${diff.inHours} hr ago';
+  return 'Last seen: ${lastSeenTime.day}/${lastSeenTime.month}/${lastSeenTime.year}';
+}
+
 
     return Scaffold(
      appBar: AppBar(
@@ -58,11 +86,11 @@ class HomeScreen extends StatelessWidget {
         icon: const Icon(Icons.chat),
         label: const Text("New Chat"),
         onPressed: () {
-          _openNewChatDialog(context, chatService);
+          _openNewChatDialog(context, _chatService);
         },
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: chatService.getUsersStream(),
+        stream: _chatService.getUsersStream(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
@@ -143,6 +171,7 @@ class HomeScreen extends StatelessWidget {
 
               Expanded(
                 child: ListView.builder(
+                  
                   itemCount: users.length,
                   itemBuilder: (context, index) {
                     final user = users[index];
@@ -166,7 +195,7 @@ class HomeScreen extends StatelessWidget {
                           user['displayName'] ?? 'Unknown',
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                        subtitle: Text(user['email'] ?? ''),
+                        subtitle: Text(formatLastSeen(user['lastSeen'])),
                         trailing: const Icon(Icons.chat_bubble_outline),
                         onTap: () {
                           Navigator.push(
@@ -194,7 +223,6 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // 🔹 Opens a dialog for manual new chat input
   void _openNewChatDialog(BuildContext context, ChatService chatService) {
     final TextEditingController emailController = TextEditingController();
 
