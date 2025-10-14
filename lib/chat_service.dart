@@ -5,7 +5,7 @@ class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Get all users except current user
+  // 🧑‍🤝‍🧑 Get all users except current user
   Stream<List<Map<String, dynamic>>> getUsersStream() {
     return _firestore.collection('users').snapshots().map((snapshot) {
       return snapshot.docs
@@ -15,18 +15,18 @@ class ChatService {
     });
   }
 
-  // Send message
+  // 💬 Send message
   Future<void> sendMessage(String receiverId, String message) async {
     final String currentUserId = _auth.currentUser!.uid;
     final String currentUserEmail = _auth.currentUser!.email!;
     final Timestamp timestamp = Timestamp.now();
 
-    // Create chat room ID (sorted to ensure consistency)
+    // Chat room ID
     List<String> ids = [currentUserId, receiverId];
     ids.sort();
     String chatRoomId = ids.join('_');
 
-    // Create message
+    // Message data
     Map<String, dynamic> newMessage = {
       'senderId': currentUserId,
       'senderEmail': currentUserEmail,
@@ -36,14 +36,14 @@ class ChatService {
       'isRead': false,
     };
 
-    // Add message to chat room
+    // Add message
     await _firestore
         .collection('chat_rooms')
         .doc(chatRoomId)
         .collection('messages')
         .add(newMessage);
 
-    // Update chat room metadata
+    // Update metadata
     await _firestore.collection('chat_rooms').doc(chatRoomId).set({
       'participants': [currentUserId, receiverId],
       'lastMessage': message,
@@ -52,7 +52,7 @@ class ChatService {
     }, SetOptions(merge: true));
   }
 
-  // Get messages stream
+  // 📨 Get messages stream
   Stream<QuerySnapshot> getMessages(String userId, String otherUserId) {
     List<String> ids = [userId, otherUserId];
     ids.sort();
@@ -66,12 +66,69 @@ class ChatService {
         .snapshots();
   }
 
-  // Get chat rooms for current user
+  // 💭 Get chat rooms for current user
   Stream<QuerySnapshot> getChatRooms() {
     return _firestore
         .collection('chat_rooms')
         .where('participants', arrayContains: _auth.currentUser!.uid)
         .orderBy('lastMessageTime', descending: true)
         .snapshots();
+  }
+
+  // 🔍 Get username by email
+  Future<String?> getUsernameByEmail(String email) async {
+    try {
+      final query = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        return query.docs.first['displayName'] ?? 'Unknown';
+      }
+      return null;
+    } catch (e) {
+      print('⚠️ Error fetching username: $e');
+      return null;
+    }
+  }
+
+  // 🆔 Get user ID by email
+  Future<String?> getUserIdByEmail(String email) async {
+    try {
+      final query = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        return query.docs.first.id;
+      }
+      return null;
+    } catch (e) {
+      print('⚠️ Error fetching userId: $e');
+      return null;
+    }
+  }
+
+  // 🖼️ Get user profile photo by email
+  Future<String?> getUserPhotoByEmail(String email) async {
+    try {
+      final query = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        return query.docs.first['photoURL'];
+      }
+      return null;
+    } catch (e) {
+      print('⚠️ Error fetching photoURL: $e');
+      return null;
+    }
   }
 }

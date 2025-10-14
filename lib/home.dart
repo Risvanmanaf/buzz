@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:application/auth_service.dart';
 import 'package:application/chat_service.dart';
 import 'package:application/chat_screen.dart';
+
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -42,10 +44,12 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
      appBar: AppBar(
-  title: const Text('BuzzChat'),
+      backgroundColor: const Color.fromARGB(255, 85, 19, 142),
+  title: const Text('𝗕𝘂𝘇𝘇𝗖𝗵𝗮𝘁',style: TextStyle(color: CupertinoColors.tertiarySystemBackground),),
   actions: [
+    
     IconButton(
-      icon: const Icon(Icons.logout),
+      icon: const Icon(Icons.logout,color: CupertinoColors.extraLightBackgroundGray,),
       tooltip: 'Sign Out',
       onPressed: () async {
         final shouldLogout = await showDialog<bool>(
@@ -81,14 +85,14 @@ class HomeScreen extends StatelessWidget {
   ],
 ),
 
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.deepPurple,
-        icon: const Icon(Icons.chat),
-        label: const Text("New Chat"),
-        onPressed: () {
-          _openNewChatDialog(context, _chatService);
-        },
-      ),
+      // floatingActionButton: FloatingActionButton.extended(
+      //   backgroundColor: Colors.deepPurple,
+      //   icon: const Icon(Icons.chat),
+      //   label: const Text("New Chat"),
+      //   onPressed: () {
+      //     _openNewChatDialog(context, _chatService);
+      //   },
+      // ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _chatService.getUsersStream(),
         builder: (context, snapshot) {
@@ -223,7 +227,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _openNewChatDialog(BuildContext context, ChatService chatService) {
+  void openNewChatDialog(BuildContext context, ChatService chatService) {
     final TextEditingController emailController = TextEditingController();
 
     showDialog(
