@@ -5,94 +5,111 @@ import 'package:application/auth_service.dart';
 import 'package:application/chat_service.dart';
 import 'package:application/chat_screen.dart';
 
-
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final AuthService authService = AuthService();
-    final ChatService _chatService = ChatService();
-    final currentUser = authService.currentUser;
-
-    //last seen
-
-    String formatLastSeen(dynamic lastSeen) {
-  if (lastSeen == null) return 'Last seen: unknown';
-
-  DateTime lastSeenTime;
-
-  if (lastSeen is DateTime) {
-    lastSeenTime = lastSeen;
-  } else if (lastSeen is int) {
-    lastSeenTime = DateTime.fromMillisecondsSinceEpoch(lastSeen);
-  } else if (lastSeen is Timestamp) { // If using Firestore Timestamp
-    lastSeenTime = lastSeen.toDate();
-  } else {
-    return 'Last seen: unknown';
-  }
-
-  final now = DateTime.now();
-  final diff = now.difference(lastSeenTime);
-
-  if (diff.inMinutes < 1) return 'Last seen: just now';
-  if (diff.inMinutes < 60) return 'Last seen: ${diff.inMinutes} min ago';
-  if (diff.inHours < 24) return 'Last seen: ${diff.inHours} hr ago';
-  return 'Last seen: ${lastSeenTime.day}/${lastSeenTime.month}/${lastSeenTime.year}';
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
+class _HomeScreenState extends State<HomeScreen> {
+  final AuthService authService = AuthService();
+  final ChatService _chatService = ChatService();
+  final TextEditingController _searchController = TextEditingController();
+
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Format last seen text
+  String formatLastSeen(dynamic lastSeen) {
+    if (lastSeen == null) return 'Last seen: unknown';
+    DateTime lastSeenTime;
+
+    if (lastSeen is DateTime) {
+      lastSeenTime = lastSeen;
+    } else if (lastSeen is int) {
+      lastSeenTime = DateTime.fromMillisecondsSinceEpoch(lastSeen);
+    } else if (lastSeen is Timestamp) {
+      lastSeenTime = lastSeen.toDate();
+    } else {
+      return 'Last seen: unknown';
+    }
+
+    final now = DateTime.now();
+    final diff = now.difference(lastSeenTime);
+
+    if (diff.inMinutes < 1) return 'Last seen: just now';
+    if (diff.inMinutes < 60) return 'Last seen: ${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return 'Last seen: ${diff.inHours} hr ago';
+    return 'Last seen: ${lastSeenTime.day}/${lastSeenTime.month}/${lastSeenTime.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUser = authService.currentUser;
 
     return Scaffold(
-     appBar: AppBar(
-      backgroundColor: const Color.fromARGB(255, 85, 19, 142),
-  title: const Text('𝗕𝘂𝘇𝘇𝗖𝗵𝗮𝘁',style: TextStyle(color: CupertinoColors.tertiarySystemBackground),),
-  actions: [
-    
-    IconButton(
-      icon: const Icon(Icons.logout,color: CupertinoColors.extraLightBackgroundGray,),
-      tooltip: 'Sign Out',
-      onPressed: () async {
-        final shouldLogout = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Confirm Logout'),
-            content: const Text('Are you sure you want to sign out?'),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+      appBar: AppBar(
+        backgroundColor: const Color.fromARGB(255, 85, 19, 142),
+        title: const Text(
+          '𝗕𝘂𝘇𝘇𝗖𝗵𝗮𝘁',
+          style: TextStyle(color: CupertinoColors.tertiarySystemBackground),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.logout,
+              color: CupertinoColors.extraLightBackgroundGray,
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
+            tooltip: 'Sign Out',
+            onPressed: () async {
+              final shouldLogout = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Confirm Logout'),
+                  content: const Text('Are you sure you want to sign out?'),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('Logout'),
+                    ),
+                  ],
                 ),
-                child: const Text('Logout'),
-              ),
-            ],
+              );
+
+              if (shouldLogout == true) {
+                await authService.signOut();
+              }
+            },
           ),
-        );
+        ],
+      ),
 
-        if (shouldLogout == true) {
-          await authService.signOut();
-        }
-      },
-    ),
-  ],
-),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: Colors.deepPurple,
+        icon: const Icon(Icons.chat),
+        label: const Text("New Chat"),
+        onPressed: () {
+          _openNewChatDialog(context, _chatService);
+        },
+      ),
 
-      // floatingActionButton: FloatingActionButton.extended(
-      //   backgroundColor: Colors.deepPurple,
-      //   icon: const Icon(Icons.chat),
-      //   label: const Text("New Chat"),
-      //   onPressed: () {
-      //     _openNewChatDialog(context, _chatService);
-      //   },
-      // ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _chatService.getUsersStream(),
         builder: (context, snapshot) {
@@ -112,9 +129,23 @@ class HomeScreen extends StatelessWidget {
             );
           }
 
+          // ✅ Apply search filter
+          final filteredUsers = users.where((user) {
+            final name = (user['displayName'] ?? '').toLowerCase();
+            final email = (user['email'] ?? '').toLowerCase();
+            final query = _searchQuery.toLowerCase();
+
+            final isNotSelf = user['email'] != currentUser?.email;
+            final matchesQuery = query.isEmpty ||
+                name.contains(query) ||
+                email.contains(query);
+
+            return isNotSelf && matchesQuery;
+          }).toList();
+
           return Column(
             children: [
-              // Current user info card
+              // Current user card
               Container(
                 padding: const EdgeInsets.all(16),
                 color: Colors.deepPurple.shade50,
@@ -158,28 +189,34 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
 
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Start a conversation',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.grey,
+              // ✅ Search bar (working)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search users...',
+                    prefixIcon:
+                        const Icon(Icons.search, color: Colors.deepPurple),
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.deepPurple.shade100),
                     ),
                   ),
+                  onChanged: (value) {
+                    setState(() => _searchQuery = value);
+                  },
                 ),
               ),
 
+              // ✅ Filtered list
               Expanded(
                 child: ListView.builder(
-                  
-                  itemCount: users.length,
+                  itemCount: filteredUsers.length,
                   itemBuilder: (context, index) {
-                    final user = users[index];
-                    if (user['email'] == currentUser?.email) return const SizedBox(); // Skip self
+                    final user = filteredUsers[index];
 
                     return Card(
                       margin: const EdgeInsets.symmetric(
@@ -227,7 +264,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void openNewChatDialog(BuildContext context, ChatService chatService) {
+  void _openNewChatDialog(BuildContext context, ChatService chatService) {
     final TextEditingController emailController = TextEditingController();
 
     showDialog(

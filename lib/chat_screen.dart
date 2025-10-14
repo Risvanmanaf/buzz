@@ -279,8 +279,9 @@ Stream<DocumentSnapshot> getReceiverStream(String uid) {
                 decoration: InputDecoration(
                   hintText: 'Type a message...',
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(28),
                     borderSide: BorderSide.none,
+                    
                   ),
                   filled: true,
                   fillColor: Colors.grey.shade100,
@@ -288,6 +289,7 @@ Stream<DocumentSnapshot> getReceiverStream(String uid) {
                     horizontal: 20,
                     vertical: 12,
                   ),
+                  
                 ),
                 maxLines: null,
                 textCapitalization: TextCapitalization.sentences,
