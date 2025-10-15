@@ -131,4 +131,18 @@ class ChatService {
       return null;
     }
   }
+  Future<Map<String, dynamic>?> findUserByEmail(String email) async {
+  final snapshot = await FirebaseFirestore.instance
+      .collection('users')
+      .where('email', isEqualTo: email)
+      .limit(1)
+      .get();
+
+  if (snapshot.docs.isNotEmpty) {
+    return snapshot.docs.first.data();
+  } else {
+    return null;
+  }
+}
+
 }
