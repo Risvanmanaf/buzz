@@ -25,7 +25,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  // Format last seen text
   String formatLastSeen(dynamic lastSeen) {
     if (lastSeen == null) return 'Last seen: unknown';
     DateTime lastSeenTime;
@@ -129,17 +128,13 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          // ✅ Apply search filter
           final filteredUsers = users.where((user) {
             final name = (user['displayName'] ?? '').toLowerCase();
             final email = (user['email'] ?? '').toLowerCase();
             final query = _searchQuery.toLowerCase();
-
             final isNotSelf = user['email'] != currentUser?.email;
-            final matchesQuery = query.isEmpty ||
-                name.contains(query) ||
-                email.contains(query);
-
+            final matchesQuery =
+                query.isEmpty || name.contains(query) || email.contains(query);
             return isNotSelf && matchesQuery;
           }).toList();
 
@@ -189,36 +184,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              // ✅ Search bar (working)
+              // ✅ Search bar
               Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.all(12.0),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search users...',
-                prefixIcon:
-                    const Icon(Icons.search, color: Colors.deepPurple),
+                prefixIcon: const Icon(Icons.search, color: Colors.deepPurple),
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      BorderSide(color: Colors.deepPurple.shade100, width: 1),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide:
-                      const BorderSide(color: Colors.deepPurple, width: 1.5),
                 ),
               ),
               onChanged: (value) {
-                setState(() => _searchQuery = value);
-                
+                setState(() {
+                  _searchQuery = value; // only update query
+                });
               },
             ),
-          ),
+          ),  
 
-              // ✅ Filtered list
+              // ✅ Filtered users list
               Expanded(
                 child: ListView.builder(
                   itemCount: filteredUsers.length,
@@ -226,10 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     final user = filteredUsers[index];
 
                     return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 4,
-                      ),
+                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundImage: user['photoURL'] != null
@@ -252,8 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               builder: (context) => ChatScreen(
                                 receiverEmail: user['email'],
                                 receiverId: user['uid'],
-                                receiverName:
-                                    user['displayName'] ?? 'Unknown',
+                                receiverName: user['displayName'] ?? 'Unknown',
                                 receiverPhotoUrl: user['photoURL'],
                               ),
                             ),
@@ -271,96 +255,99 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
- void _openNewChatDialog(BuildContext context, ChatService chatService) {
-  final TextEditingController emailController = TextEditingController();
-  bool isLoading = false;
+  void _openNewChatDialog(BuildContext context, ChatService chatService) {
+    final TextEditingController emailController = TextEditingController();
+    bool isLoading = false;
 
-  showDialog(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setState) => AlertDialog(
-        title: const Text("Start New Chat"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: emailController,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: "Enter user's email",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.email),
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text("Start New Chat"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: "Enter user's email",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.email),
+                ),
               ),
+              if (isLoading)
+                const Padding(
+                  padding: EdgeInsets.only(top: 16),
+                  child: CircularProgressIndicator(),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context),
+              child: const Text("Cancel"),
             ),
-            if (isLoading)
-              const Padding(
-                padding: EdgeInsets.only(top: 16),
-                child: CircularProgressIndicator(),
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      final email = emailController.text.trim();
+
+                      if (email.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Please enter an email')),
+                        );
+                        return;
+                      }
+
+                      if (email == authService.currentUser?.email) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Cannot chat with yourself')),
+                        );
+                        return;
+                      }
+
+                      setState(() => isLoading = true);
+
+                      final user = await chatService.findUserByEmail(email);
+
+                      setState(() => isLoading = false);
+
+                      if (context.mounted) Navigator.pop(context);
+
+                      if (user != null && context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatScreen(
+                              receiverEmail: user['email'],
+                              receiverId: user['uid'],
+                              receiverName: user['displayName'] ?? 'Unknown',
+                              receiverPhotoUrl: user['photoURL'],
+                            ),
+                          ),
+                        );
+                      } else if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'User not found. Check the email and try again.'),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
               ),
+              child: const Text("Chat"),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: isLoading ? null : () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: isLoading
-                ? null
-                : () async {
-                    final email = emailController.text.trim();
-                    
-                    if (email.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Please enter an email')),
-                      );
-                      return;
-                    }
-
-                    if (email == authService.currentUser?.email) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Cannot chat with yourself')),
-                      );
-                      return;
-                    }
-
-                    setState(() => isLoading = true);
-
-                    final user = await chatService.findUserByEmail(email);
-
-                    setState(() => isLoading = false);
-
-                    if (context.mounted) Navigator.pop(context);
-
-                    if (user != null && context.mounted) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatScreen(
-                            receiverEmail: user['email'],
-                            receiverId: user['uid'],
-                            receiverName: user['displayName'] ?? 'Unknown',
-                            receiverPhotoUrl: user['photoURL'],
-                          ),
-                        ),
-                      );
-                    } else if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('User not found. Check the email and try again.'),
-                          backgroundColor: Colors.redAccent,
-                        ),
-                      );
-                    }
-                  },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text("Chat"),
-          ),
-        ],
       ),
-    ),
-  );
-}}
+    );
+  }
+}
